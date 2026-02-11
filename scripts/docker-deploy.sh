@@ -154,12 +154,16 @@ ok "Generated ${DIM}docker-compose.deploy.yml${RESET}"
 DATA_DIR="$PROJECT_DIR/data"
 mkdir -p "$DATA_DIR/workspace"
 
-# Build openclaw.json
+# Build openclaw.json (uses current agents.defaults.model.primary schema)
 if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
   cat > "$DATA_DIR/openclaw.json" <<EOF
 {
-  "agent": {
-    "model": "openai/${OPENAI_MODEL}"
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openai/${OPENAI_MODEL}"
+      }
+    }
   },
   "models": {
     "providers": {
@@ -178,8 +182,12 @@ EOF
 else
   cat > "$DATA_DIR/openclaw.json" <<EOF
 {
-  "agent": {
-    "model": "openai/${OPENAI_MODEL}"
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "openai/${OPENAI_MODEL}"
+      }
+    }
   },
   "models": {
     "providers": {
