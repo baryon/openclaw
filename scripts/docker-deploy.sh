@@ -167,7 +167,11 @@ if [[ -z "$PROXY_CONTAINER" ]]; then
   done
 fi
 if [[ -n "$PROXY_CONTAINER" ]]; then
-  PROXY_IP=$(docker inspect "$PROXY_CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -c 15)
+  # Extract IP from the "shared" network only; fall back to first network IP
+  PROXY_IP=$(docker inspect "$PROXY_CONTAINER" --format '{{index .NetworkSettings.Networks "shared"}}' 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+  if [[ -z "$PROXY_IP" ]]; then
+    PROXY_IP=$(docker inspect "$PROXY_CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' 2>/dev/null | awk '{print $1}')
+  fi
 fi
 if [[ -n "$PROXY_IP" ]]; then
   ok "Detected nginx-proxy IP: ${DIM}${PROXY_IP}${RESET}"
