@@ -154,7 +154,38 @@ ok "Generated ${DIM}docker-compose.deploy.yml${RESET}"
 DATA_DIR="$PROJECT_DIR/data"
 mkdir -p "$DATA_DIR/workspace"
 
+# Detect nginx-proxy IP on the shared network for trustedProxies
+PROXY_IP=""
+PROXY_CONTAINER=$(docker ps --filter "label=com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy" --format '{{.Names}}' 2>/dev/null | head -n1)
+if [[ -z "$PROXY_CONTAINER" ]]; then
+  # Fallback: look for container named nginx-proxy or nginx
+  for name in nginx-proxy nginx; do
+    if docker inspect "$name" &>/dev/null; then
+      PROXY_CONTAINER="$name"
+      break
+    fi
+  done
+fi
+if [[ -n "$PROXY_CONTAINER" ]]; then
+  PROXY_IP=$(docker inspect "$PROXY_CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | head -c 15)
+fi
+if [[ -n "$PROXY_IP" ]]; then
+  ok "Detected nginx-proxy IP: ${DIM}${PROXY_IP}${RESET}"
+else
+  warn "Could not detect nginx-proxy IP. You may need to set gateway.trustedProxies manually."
+fi
+
 # Build openclaw.json (uses current agents.defaults.model.primary schema)
+GATEWAY_BLOCK=""
+if [[ -n "$PROXY_IP" ]]; then
+  GATEWAY_BLOCK=$(cat <<GEOF
+  "gateway": {
+    "trustedProxies": ["${PROXY_IP}"]
+  },
+GEOF
+)
+fi
+
 MODELS_BLOCK=$(cat <<MEOF
 ,
   "models": {
@@ -185,7 +216,7 @@ fi
 
 cat > "$DATA_DIR/openclaw.json" <<EOF
 {
-  "agents": {
+  ${GATEWAY_BLOCK}"agents": {
     "defaults": {
       "model": {
         "primary": "openai/${OPENAI_MODEL}"
