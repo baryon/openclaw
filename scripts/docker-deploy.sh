@@ -155,32 +155,35 @@ DATA_DIR="$PROJECT_DIR/data"
 mkdir -p "$DATA_DIR/workspace"
 
 # Build openclaw.json (uses current agents.defaults.model.primary schema)
-if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
-  cat > "$DATA_DIR/openclaw.json" <<EOF
-{
-  "agents": {
-    "defaults": {
-      "model": {
-        "primary": "openai/${OPENAI_MODEL}"
-      }
-    }
-  },
+MODELS_BLOCK=$(cat <<MEOF
+,
   "models": {
     "providers": {
       "openai": {
-        "baseUrl": "${OPENAI_BASE_URL}"
+        "baseUrl": "${OPENAI_BASE_URL}",
+        "models": [
+          { "id": "${OPENAI_MODEL}", "name": "${OPENAI_MODEL}" }
+        ]
       }
     }
-  },
+  }
+MEOF
+)
+
+CHANNELS_BLOCK=""
+if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+  CHANNELS_BLOCK=$(cat <<CEOF
+,
   "channels": {
     "telegram": {
       "botToken": "\${TELEGRAM_BOT_TOKEN}"
     }
   }
-}
-EOF
-else
-  cat > "$DATA_DIR/openclaw.json" <<EOF
+CEOF
+)
+fi
+
+cat > "$DATA_DIR/openclaw.json" <<EOF
 {
   "agents": {
     "defaults": {
@@ -188,17 +191,9 @@ else
         "primary": "openai/${OPENAI_MODEL}"
       }
     }
-  },
-  "models": {
-    "providers": {
-      "openai": {
-        "baseUrl": "${OPENAI_BASE_URL}"
-      }
-    }
-  }
+  }${MODELS_BLOCK}${CHANNELS_BLOCK}
 }
 EOF
-fi
 
 # Ensure the node user (uid 1000) can write to data dir
 chmod -R 777 "$DATA_DIR"
