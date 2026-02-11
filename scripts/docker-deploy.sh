@@ -85,6 +85,7 @@ LETSENCRYPT_EMAIL=$(read_required "Let's Encrypt email")
 TELEGRAM_BOT_TOKEN=$(read_optional "Telegram Bot Token")
 OPENAI_API_KEY=$(read_required "OpenAI API Key")
 OPENAI_BASE_URL=$(read_optional "OpenAI Base URL" "https://api.openai.com/v1")
+OPENAI_API_FORMAT=$(read_optional "API format (openai-completions / openai-responses)" "openai-completions")
 OPENAI_MODEL=$(read_optional "Default model" "gpt-5.2")
 
 OPENCLAW_GATEWAY_TOKEN=$(openssl rand -hex 32)
@@ -190,14 +191,19 @@ GEOF
 )
 fi
 
+API_FIELD=""
+if [[ "$OPENAI_API_FORMAT" != "openai-completions" ]]; then
+  API_FIELD="\"api\": \"${OPENAI_API_FORMAT}\", "
+fi
+
 MODELS_BLOCK=$(cat <<MEOF
 ,
   "models": {
     "providers": {
       "openai": {
         "baseUrl": "${OPENAI_BASE_URL}",
-        "models": [
-          { "id": "${OPENAI_MODEL}", "name": "${OPENAI_MODEL}" }
+        ${API_FIELD}"models": [
+          { "id": "${OPENAI_MODEL}", "name": "${OPENAI_MODEL}"$([ -n "$API_FIELD" ] && echo ", \"api\": \"${OPENAI_API_FORMAT}\"") }
         ]
       }
     }
