@@ -23,7 +23,7 @@ RED='\033[0;31m'
 
 info()  { echo -e "${CYAN}ℹ${RESET}  $*"; }
 ok()    { echo -e "${GREEN}✓${RESET}  $*"; }
-warn()  { echo -e "${YELLOW}⚠${RESET}  $*"; }
+warn()  { echo -e "${YELLOW}⚠${RESET}  $*" >&2; }
 err()   { echo -e "${RED}✗${RESET}  $*" >&2; }
 
 # ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@ require_cmd() {
 read_required() {
   local prompt="$1" var=""
   while [[ -z "$var" ]]; do
-    printf "${BOLD}%s${RESET}: " "$prompt"
+    printf "${BOLD}%s${RESET}: " "$prompt" >&2
     read -r var
     [[ -z "$var" ]] && warn "This field is required."
   done
@@ -49,9 +49,9 @@ read_required() {
 read_optional() {
   local prompt="$1" default="${2:-}"
   if [[ -n "$default" ]]; then
-    printf "${BOLD}%s${RESET} [${DIM}%s${RESET}]: " "$prompt" "$default"
+    printf "${BOLD}%s${RESET} [${DIM}%s${RESET}]: " "$prompt" "$default" >&2
   else
-    printf "${BOLD}%s${RESET} (Enter to skip): " "$prompt"
+    printf "${BOLD}%s${RESET} (Enter to skip): " "$prompt" >&2
   fi
   local var=""
   read -r var
