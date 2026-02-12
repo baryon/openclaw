@@ -455,8 +455,8 @@ update_config_jq() {
         "capDrop": [],
         "dns": ["8.8.8.8", "1.1.1.1"],
         "binds": [
-          "/home/node/.openclaw/media:/home/node/.openclaw/media:ro",
-          "/home/node/.openclaw/skills-app:/app/skills:ro"
+          "/home/node/.openclaw/media:/workspace/.media:ro",
+          "/home/node/.openclaw/skills-app:/workspace/.skills:ro"
         ]
       },
       "browser": {
