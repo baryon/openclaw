@@ -508,8 +508,8 @@ MANUAL_EOF
   fi
 fi
 
-# Ensure permissions
-chmod -R 777 "$WORKSPACE_DIR"
+# Ensure permissions — gateway runs as uid 1000 (node), needs read access to data/
+chmod -R 777 "$DATA_DIR"
 
 # ---------------------------------------------------------------------------
 # Summary
