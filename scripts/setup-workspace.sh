@@ -70,8 +70,18 @@ ok "目录结构已创建"
 # ---------------------------------------------------------------------------
 info "写入工作空间文件..."
 
+# Helper: only write if file doesn't exist (preserve AI customizations)
+write_if_missing() {
+  local file="$1"
+  if [[ -f "$file" ]]; then
+    ok "$(basename "$file") 已存在，跳过（保留 AI 自定义内容）"
+    return 1
+  fi
+  return 0
+}
+
 # --- AGENTS.md ---
-cat > "$WORKSPACE_DIR/AGENTS.md" << 'AGENTS_EOF'
+write_if_missing "$WORKSPACE_DIR/AGENTS.md" && cat > "$WORKSPACE_DIR/AGENTS.md" << 'AGENTS_EOF'
 # 工作空间指南
 
 这个文件夹是你的家。好好对待它。
@@ -160,7 +170,7 @@ AGENTS_EOF
 ok "AGENTS.md"
 
 # --- SOUL.md ---
-cat > "$WORKSPACE_DIR/SOUL.md" << 'SOUL_EOF'
+write_if_missing "$WORKSPACE_DIR/SOUL.md" && cat > "$WORKSPACE_DIR/SOUL.md" << 'SOUL_EOF'
 # 你是谁
 
 你不是聊天机器人。你是一个有态度的助手。
@@ -204,7 +214,7 @@ SOUL_EOF
 ok "SOUL.md"
 
 # --- USER.md ---
-cat > "$WORKSPACE_DIR/USER.md" << 'USER_EOF'
+write_if_missing "$WORKSPACE_DIR/USER.md" && cat > "$WORKSPACE_DIR/USER.md" << 'USER_EOF'
 # 关于用户
 
 _在对话中了解你的用户，逐步更新这里。_
@@ -225,7 +235,7 @@ USER_EOF
 ok "USER.md"
 
 # --- HEARTBEAT.md ---
-cat > "$WORKSPACE_DIR/HEARTBEAT.md" << 'HEARTBEAT_EOF'
+write_if_missing "$WORKSPACE_DIR/HEARTBEAT.md" && cat > "$WORKSPACE_DIR/HEARTBEAT.md" << 'HEARTBEAT_EOF'
 # 心跳清单
 
 收到心跳时，按顺序检查：
@@ -252,7 +262,7 @@ HEARTBEAT_EOF
 ok "HEARTBEAT.md"
 
 # --- BOOTSTRAP.md ---
-cat > "$WORKSPACE_DIR/BOOTSTRAP.md" << 'BOOTSTRAP_EOF'
+write_if_missing "$WORKSPACE_DIR/BOOTSTRAP.md" && cat > "$WORKSPACE_DIR/BOOTSTRAP.md" << 'BOOTSTRAP_EOF'
 # 你好，世界
 
 _你刚醒来。是时候搞清楚自己是谁了。_
@@ -302,7 +312,7 @@ BOOTSTRAP_EOF
 ok "BOOTSTRAP.md"
 
 # --- IDENTITY.md ---
-cat > "$WORKSPACE_DIR/IDENTITY.md" << 'IDENTITY_EOF'
+write_if_missing "$WORKSPACE_DIR/IDENTITY.md" && cat > "$WORKSPACE_DIR/IDENTITY.md" << 'IDENTITY_EOF'
 # 我是谁？
 
 _在第一次对话中填写这里。让它成为你的。_
@@ -325,7 +335,7 @@ IDENTITY_EOF
 ok "IDENTITY.md"
 
 # --- MEMORY.md ---
-cat > "$WORKSPACE_DIR/MEMORY.md" << 'MEMORY_EOF'
+write_if_missing "$WORKSPACE_DIR/MEMORY.md" && cat > "$WORKSPACE_DIR/MEMORY.md" << 'MEMORY_EOF'
 # 长期记忆
 
 _精选的重要记忆。像人的长期记忆一样 — 不是原始日志，是提炼后的认知。_
@@ -354,7 +364,7 @@ MEMORY_EOF
 ok "MEMORY.md"
 
 # --- TOOLS.md ---
-cat > "$WORKSPACE_DIR/TOOLS.md" << 'TOOLS_EOF'
+write_if_missing "$WORKSPACE_DIR/TOOLS.md" && cat > "$WORKSPACE_DIR/TOOLS.md" << 'TOOLS_EOF'
 # 本地工具笔记
 
 技能定义工具_怎么用_。这个文件记录_你的_具体配置 — 你的环境独有的东西。
