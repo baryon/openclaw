@@ -455,7 +455,7 @@ update_config_jq() {
         "capDrop": [],
         "dns": ["8.8.8.8", "1.1.1.1"],
         "env": {
-          "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+          "OPENAI_API_KEY": "${SANDBOX_OPENAI_API_KEY}"
         },
         "binds": [
           "/home/node/.openclaw/media:/workspace/.media:ro",
@@ -502,7 +502,7 @@ update_config_node() {
         user: '0:0',
         capDrop: [],
         dns: ['8.8.8.8', '1.1.1.1'],
-        env: { OPENAI_API_KEY: '\\${OPENAI_API_KEY}' },
+        env: { OPENAI_API_KEY: '\\${SANDBOX_OPENAI_API_KEY}' },
         binds: [
           '/home/node/.openclaw/media:/workspace/.media:ro',
           '/home/node/.openclaw/skills-app:/workspace/.skills:ro'
