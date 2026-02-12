@@ -388,16 +388,25 @@ echo ""
 ok "所有工作空间文件已写入 ${DIM}$WORKSPACE_DIR${RESET}"
 
 # ---------------------------------------------------------------------------
+# Resolve host paths for Docker-in-Docker volume mapping
+# ---------------------------------------------------------------------------
+HOST_DATA_DIR="$(cd "$DATA_DIR" && pwd)"
+HOST_WORKSPACE_DIR="$HOST_DATA_DIR/workspace"
+HOST_MEDIA_DIR="$HOST_DATA_DIR/media"
+
+# ---------------------------------------------------------------------------
 # Update openclaw.json — add heartbeat, sandbox, timezone
 # ---------------------------------------------------------------------------
 info "更新 openclaw.json..."
 
-# Check if jq is available
-if command -v jq &>/dev/null; then
-  # Use jq for clean JSON manipulation
+update_config_jq() {
+  local TMP_FILE
   TMP_FILE=$(mktemp)
 
-  jq '
+  jq \
+    --arg wsRoot "$HOST_WORKSPACE_DIR" \
+    --arg mediaBind "$HOST_MEDIA_DIR:/home/node/.openclaw/media:rw" \
+  '
     .agents.defaults.heartbeat = {
       "every": "30m",
       "target": "last",
@@ -412,13 +421,15 @@ if command -v jq &>/dev/null; then
     | .agents.defaults.sandbox = {
       "mode": "all",
       "workspaceAccess": "rw",
+      "workspaceRoot": $wsRoot,
       "docker": {
         "image": "openclaw-sandbox-dev:latest",
         "readOnlyRoot": false,
         "network": "bridge",
         "user": "0:0",
         "capDrop": [],
-        "dns": ["8.8.8.8", "1.1.1.1"]
+        "dns": ["8.8.8.8", "1.1.1.1"],
+        "binds": [$mediaBind]
       },
       "browser": {
         "enabled": true
@@ -427,89 +438,100 @@ if command -v jq &>/dev/null; then
   ' "$CONFIG_FILE" > "$TMP_FILE"
 
   mv "$TMP_FILE" "$CONFIG_FILE"
-  ok "openclaw.json 已更新（通过 jq）"
+}
 
-else
-  # Fallback: use node for JSON manipulation
-  if command -v node &>/dev/null; then
-    node -e "
-      const fs = require('fs');
-      const cfg = JSON.parse(fs.readFileSync('$CONFIG_FILE', 'utf8'));
+update_config_node() {
+  node -e "
+    const fs = require('fs');
+    const cfg = JSON.parse(fs.readFileSync('$CONFIG_FILE', 'utf8'));
 
-      cfg.agents = cfg.agents || {};
-      cfg.agents.defaults = cfg.agents.defaults || {};
+    cfg.agents = cfg.agents || {};
+    cfg.agents.defaults = cfg.agents.defaults || {};
 
-      cfg.agents.defaults.heartbeat = {
-        every: '30m',
-        target: 'last',
-        activeHours: {
-          start: '08:00',
-          end: '23:00',
-          timezone: 'Asia/Shanghai'
-        }
-      };
-
-      cfg.agents.defaults.userTimezone = 'Asia/Shanghai';
-      cfg.agents.defaults.timeFormat = '24';
-
-      cfg.agents.defaults.sandbox = {
-        mode: 'all',
-        workspaceAccess: 'rw',
-        docker: {
-          image: 'openclaw-sandbox-dev:latest',
-          readOnlyRoot: false,
-          network: 'bridge',
-          user: '0:0',
-          capDrop: [],
-          dns: ['8.8.8.8', '1.1.1.1']
-        },
-        browser: {
-          enabled: true
-        }
-      };
-
-      fs.writeFileSync('$CONFIG_FILE', JSON.stringify(cfg, null, 2) + '\n');
-    "
-    ok "openclaw.json 已更新（通过 node）"
-
-  else
-    warn "jq 和 node 都不可用，无法自动更新 openclaw.json"
-    warn "请手动添加 heartbeat、sandbox 和 timezone 配置"
-    echo ""
-    echo "需要在 agents.defaults 中添加："
-    cat << 'MANUAL_EOF'
-    "heartbeat": {
-      "every": "30m",
-      "target": "last",
-      "activeHours": {
-        "start": "08:00",
-        "end": "23:00",
-        "timezone": "Asia/Shanghai"
+    cfg.agents.defaults.heartbeat = {
+      every: '30m',
+      target: 'last',
+      activeHours: {
+        start: '08:00',
+        end: '23:00',
+        timezone: 'Asia/Shanghai'
       }
-    },
-    "userTimezone": "Asia/Shanghai",
-    "timeFormat": "24",
-    "sandbox": {
-      "mode": "all",
-      "workspaceAccess": "rw",
-      "docker": {
-        "image": "openclaw-sandbox-dev:latest",
-        "readOnlyRoot": false,
-        "network": "bridge",
-        "user": "0:0",
-        "capDrop": [],
-        "dns": ["8.8.8.8", "1.1.1.1"]
+    };
+
+    cfg.agents.defaults.userTimezone = 'Asia/Shanghai';
+    cfg.agents.defaults.timeFormat = '24';
+
+    cfg.agents.defaults.sandbox = {
+      mode: 'all',
+      workspaceAccess: 'rw',
+      workspaceRoot: '$HOST_WORKSPACE_DIR',
+      docker: {
+        image: 'openclaw-sandbox-dev:latest',
+        readOnlyRoot: false,
+        network: 'bridge',
+        user: '0:0',
+        capDrop: [],
+        dns: ['8.8.8.8', '1.1.1.1'],
+        binds: ['$HOST_MEDIA_DIR:/home/node/.openclaw/media:rw']
       },
-      "browser": {
-        "enabled": true
+      browser: {
+        enabled: true
       }
-    }
-MANUAL_EOF
-  fi
+    };
+
+    fs.writeFileSync('$CONFIG_FILE', JSON.stringify(cfg, null, 2) + '\n');
+  "
+}
+
+if command -v jq &>/dev/null; then
+  update_config_jq
+  ok "openclaw.json 已更新（通过 jq）"
+elif command -v node &>/dev/null; then
+  update_config_node
+  ok "openclaw.json 已更新（通过 node）"
+else
+  err "jq 和 node 都不可用，无法更新 openclaw.json"
+  exit 1
 fi
 
-# Ensure permissions — gateway runs as uid 1000 (node), needs read access to data/
+# ---------------------------------------------------------------------------
+# Patch docker-compose.deploy.yml — Docker socket + group_add for sandbox
+# ---------------------------------------------------------------------------
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.deploy.yml"
+
+if [[ -f "$COMPOSE_FILE" ]]; then
+  info "更新 docker-compose.deploy.yml..."
+
+  # Add Docker socket and CLI mounts if not already present
+  if ! grep -q 'docker.sock' "$COMPOSE_FILE"; then
+    sed -i '/\.\/data\/workspace:\/home\/node\/.openclaw\/workspace/a\      - /var/run/docker.sock:/var/run/docker.sock\n      - /usr/bin/docker:/usr/bin/docker:ro' "$COMPOSE_FILE"
+    ok "已添加 Docker socket + CLI 挂载"
+  else
+    ok "Docker socket 挂载已存在，跳过"
+  fi
+
+  # Add group_add for Docker socket access (node user needs docker group)
+  if ! grep -q 'group_add' "$COMPOSE_FILE"; then
+    DOCKER_GID=$(getent group docker 2>/dev/null | cut -d: -f3)
+    if [[ -n "$DOCKER_GID" ]]; then
+      sed -i "/volumes:/i\\    group_add:\\n      - \"${DOCKER_GID}\"" "$COMPOSE_FILE"
+      ok "已添加 group_add: ${DOCKER_GID}（docker 组）"
+    else
+      warn "找不到 docker 组，请手动添加 group_add"
+    fi
+  else
+    ok "group_add 已存在，跳过"
+  fi
+else
+  warn "找不到 $COMPOSE_FILE，跳过 compose 配置"
+fi
+
+# ---------------------------------------------------------------------------
+# Fix permissions — gateway runs as uid 1000 (node)
+# ---------------------------------------------------------------------------
+info "修复文件权限..."
 chmod -R 777 "$DATA_DIR"
+ok "权限已修复"
 
 # ---------------------------------------------------------------------------
 # Summary
@@ -518,7 +540,9 @@ echo ""
 echo -e "${BOLD}${GREEN}🦞 工作空间配置完成！${RESET}"
 echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo -e "  工作空间: ${DIM}$WORKSPACE_DIR${RESET}"
+echo -e "  工作空间:     ${DIM}$WORKSPACE_DIR${RESET}"
+echo -e "  workspaceRoot: ${DIM}$HOST_WORKSPACE_DIR${RESET}"
+echo -e "  media 挂载:   ${DIM}$HOST_MEDIA_DIR → /home/node/.openclaw/media${RESET}"
 echo ""
 echo -e "  ${BOLD}目录结构:${RESET}"
 echo -e "    ${DIM}├── memory/     记忆日志${RESET}"
@@ -538,6 +562,6 @@ echo -e "    ${DIM}MEMORY.md     长期记忆模板${RESET}"
 echo -e "    ${DIM}TOOLS.md      本地工具笔记${RESET}"
 echo ""
 echo -e "  ${BOLD}下一步:${RESET}"
-echo -e "    ${DIM}docker compose -f docker-compose.deploy.yml restart${RESET}"
-echo -e "    然后通过 Telegram 发消息触发 BOOTSTRAP 引导流程"
+echo -e "    ${DIM}docker compose -f docker-compose.deploy.yml up -d --force-recreate${RESET}"
+echo -e "    然后通过 Telegram 发消息测试"
 echo ""
