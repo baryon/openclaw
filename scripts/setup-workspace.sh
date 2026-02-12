@@ -402,13 +402,17 @@ HOST_DATA_DIR="$(cd "$DATA_DIR" && pwd)"
 # ---------------------------------------------------------------------------
 GATEWAY_HOME="/home/node/.openclaw"
 
-if [[ "$(readlink -f "$GATEWAY_HOME" 2>/dev/null)" != "$HOST_DATA_DIR" ]]; then
+if [[ "$(readlink "$GATEWAY_HOME" 2>/dev/null)" == "$HOST_DATA_DIR" ]]; then
+  ok "路径映射已存在: $GATEWAY_HOME → $HOST_DATA_DIR"
+else
   info "创建 Docker-in-Docker 路径映射..."
   sudo mkdir -p "$(dirname "$GATEWAY_HOME")"
+  # Remove if it's a real directory (ln -sfn won't replace directories)
+  if [[ -d "$GATEWAY_HOME" && ! -L "$GATEWAY_HOME" ]]; then
+    sudo rm -rf "$GATEWAY_HOME"
+  fi
   sudo ln -sfn "$HOST_DATA_DIR" "$GATEWAY_HOME"
   ok "已创建 symlink: $GATEWAY_HOME → $HOST_DATA_DIR"
-else
-  ok "路径映射已存在: $GATEWAY_HOME → $HOST_DATA_DIR"
 fi
 
 # ---------------------------------------------------------------------------
