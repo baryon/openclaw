@@ -415,6 +415,14 @@ else
   ok "已创建 symlink: $GATEWAY_HOME → $HOST_DATA_DIR"
 fi
 
+# Skills live at /app/skills/ inside the gateway image.
+# Sandbox needs access via a host-resolvable path, so symlink repo skills.
+SKILLS_LINK="$HOST_DATA_DIR/skills-app"
+if [[ ! -L "$SKILLS_LINK" ]]; then
+  ln -sfn "$PROJECT_DIR/skills" "$SKILLS_LINK"
+  ok "已创建 skills symlink: $SKILLS_LINK → $PROJECT_DIR/skills"
+fi
+
 # ---------------------------------------------------------------------------
 # Update openclaw.json — add heartbeat, sandbox, timezone
 # ---------------------------------------------------------------------------
@@ -446,7 +454,10 @@ update_config_jq() {
         "user": "0:0",
         "capDrop": [],
         "dns": ["8.8.8.8", "1.1.1.1"],
-        "binds": ["/home/node/.openclaw/media:/home/node/.openclaw/media:ro"]
+        "binds": [
+          "/home/node/.openclaw/media:/home/node/.openclaw/media:ro",
+          "/home/node/.openclaw/skills-app:/app/skills:ro"
+        ]
       },
       "browser": {
         "enabled": true
