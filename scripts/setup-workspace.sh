@@ -391,8 +391,25 @@ ok "所有工作空间文件已写入 ${DIM}$WORKSPACE_DIR${RESET}"
 # Resolve host paths for Docker-in-Docker volume mapping
 # ---------------------------------------------------------------------------
 HOST_DATA_DIR="$(cd "$DATA_DIR" && pwd)"
-HOST_WORKSPACE_DIR="$HOST_DATA_DIR/workspace"
-HOST_MEDIA_DIR="$HOST_DATA_DIR/media"
+
+# ---------------------------------------------------------------------------
+# Create symlink so Docker daemon can resolve gateway container paths
+#
+# The gateway container sees /home/node/.openclaw (mapped from ./data).
+# When it creates sandbox containers with `docker -v`, Docker daemon runs
+# on the host and tries to find /home/node/.openclaw on the HOST filesystem.
+# This symlink bridges that gap.
+# ---------------------------------------------------------------------------
+GATEWAY_HOME="/home/node/.openclaw"
+
+if [[ "$(readlink -f "$GATEWAY_HOME" 2>/dev/null)" != "$HOST_DATA_DIR" ]]; then
+  info "创建 Docker-in-Docker 路径映射..."
+  sudo mkdir -p "$(dirname "$GATEWAY_HOME")"
+  sudo ln -sfn "$HOST_DATA_DIR" "$GATEWAY_HOME"
+  ok "已创建 symlink: $GATEWAY_HOME → $HOST_DATA_DIR"
+else
+  ok "路径映射已存在: $GATEWAY_HOME → $HOST_DATA_DIR"
+fi
 
 # ---------------------------------------------------------------------------
 # Update openclaw.json — add heartbeat, sandbox, timezone
@@ -403,10 +420,7 @@ update_config_jq() {
   local TMP_FILE
   TMP_FILE=$(mktemp)
 
-  jq \
-    --arg wsRoot "$HOST_WORKSPACE_DIR" \
-    --arg mediaBind "$HOST_MEDIA_DIR:/home/node/.openclaw/media:rw" \
-  '
+  jq '
     .agents.defaults.heartbeat = {
       "every": "30m",
       "target": "last",
@@ -421,15 +435,13 @@ update_config_jq() {
     | .agents.defaults.sandbox = {
       "mode": "all",
       "workspaceAccess": "rw",
-      "workspaceRoot": $wsRoot,
       "docker": {
         "image": "openclaw-sandbox-dev:latest",
         "readOnlyRoot": false,
         "network": "bridge",
         "user": "0:0",
         "capDrop": [],
-        "dns": ["8.8.8.8", "1.1.1.1"],
-        "binds": [$mediaBind]
+        "dns": ["8.8.8.8", "1.1.1.1"]
       },
       "browser": {
         "enabled": true
@@ -464,15 +476,13 @@ update_config_node() {
     cfg.agents.defaults.sandbox = {
       mode: 'all',
       workspaceAccess: 'rw',
-      workspaceRoot: '$HOST_WORKSPACE_DIR',
       docker: {
         image: 'openclaw-sandbox-dev:latest',
         readOnlyRoot: false,
         network: 'bridge',
         user: '0:0',
         capDrop: [],
-        dns: ['8.8.8.8', '1.1.1.1'],
-        binds: ['$HOST_MEDIA_DIR:/home/node/.openclaw/media:rw']
+        dns: ['8.8.8.8', '1.1.1.1']
       },
       browser: {
         enabled: true
@@ -534,15 +544,24 @@ chmod -R 777 "$DATA_DIR"
 ok "权限已修复"
 
 # ---------------------------------------------------------------------------
+# Remove stale sandbox containers (so they pick up new mounts on recreate)
+# ---------------------------------------------------------------------------
+STALE_SANDBOXES=$(docker ps -aq --filter "label=openclaw.sandbox=1" 2>/dev/null || true)
+if [[ -n "$STALE_SANDBOXES" ]]; then
+  info "清理旧 sandbox 容器..."
+  echo "$STALE_SANDBOXES" | xargs docker rm -f 2>/dev/null || true
+  ok "旧 sandbox 容器已清理"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
 echo -e "${BOLD}${GREEN}🦞 工作空间配置完成！${RESET}"
 echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo -e "  工作空间:     ${DIM}$WORKSPACE_DIR${RESET}"
-echo -e "  workspaceRoot: ${DIM}$HOST_WORKSPACE_DIR${RESET}"
-echo -e "  media 挂载:   ${DIM}$HOST_MEDIA_DIR → /home/node/.openclaw/media${RESET}"
+echo -e "  工作空间: ${DIM}$WORKSPACE_DIR${RESET}"
+echo -e "  路径映射: ${DIM}$GATEWAY_HOME → $HOST_DATA_DIR${RESET}"
 echo ""
 echo -e "  ${BOLD}目录结构:${RESET}"
 echo -e "    ${DIM}├── memory/     记忆日志${RESET}"
@@ -550,16 +569,6 @@ echo -e "    ${DIM}├── projects/   项目文件${RESET}"
 echo -e "    ${DIM}├── notes/      笔记研究${RESET}"
 echo -e "    ${DIM}├── skills/     自定义技能${RESET}"
 echo -e "    ${DIM}└── temp/       临时文件${RESET}"
-echo ""
-echo -e "  ${BOLD}配置文件:${RESET}"
-echo -e "    ${DIM}AGENTS.md     操作指南 + 文件组织规则${RESET}"
-echo -e "    ${DIM}SOUL.md       中文简洁直接风格${RESET}"
-echo -e "    ${DIM}USER.md       用户信息模板${RESET}"
-echo -e "    ${DIM}HEARTBEAT.md  心跳清单${RESET}"
-echo -e "    ${DIM}BOOTSTRAP.md  首次运行引导${RESET}"
-echo -e "    ${DIM}IDENTITY.md   身份信息模板${RESET}"
-echo -e "    ${DIM}MEMORY.md     长期记忆模板${RESET}"
-echo -e "    ${DIM}TOOLS.md      本地工具笔记${RESET}"
 echo ""
 echo -e "  ${BOLD}下一步:${RESET}"
 echo -e "    ${DIM}docker compose -f docker-compose.deploy.yml up -d --force-recreate${RESET}"
