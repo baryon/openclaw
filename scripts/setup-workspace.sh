@@ -454,6 +454,9 @@ update_config_jq() {
         "user": "0:0",
         "capDrop": [],
         "dns": ["8.8.8.8", "1.1.1.1"],
+        "env": {
+          "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+        },
         "binds": [
           "/home/node/.openclaw/media:/workspace/.media:ro",
           "/home/node/.openclaw/skills-app:/workspace/.skills:ro"
@@ -499,7 +502,11 @@ update_config_node() {
         user: '0:0',
         capDrop: [],
         dns: ['8.8.8.8', '1.1.1.1'],
-        binds: ['/home/node/.openclaw/media:/home/node/.openclaw/media:ro']
+        env: { OPENAI_API_KEY: '\\${OPENAI_API_KEY}' },
+        binds: [
+          '/home/node/.openclaw/media:/workspace/.media:ro',
+          '/home/node/.openclaw/skills-app:/workspace/.skills:ro'
+        ]
       },
       browser: {
         enabled: true
