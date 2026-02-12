@@ -441,7 +441,8 @@ update_config_jq() {
         "network": "bridge",
         "user": "0:0",
         "capDrop": [],
-        "dns": ["8.8.8.8", "1.1.1.1"]
+        "dns": ["8.8.8.8", "1.1.1.1"],
+        "binds": ["/home/node/.openclaw/media:/home/node/.openclaw/media:ro"]
       },
       "browser": {
         "enabled": true
@@ -482,7 +483,8 @@ update_config_node() {
         network: 'bridge',
         user: '0:0',
         capDrop: [],
-        dns: ['8.8.8.8', '1.1.1.1']
+        dns: ['8.8.8.8', '1.1.1.1'],
+        binds: ['/home/node/.openclaw/media:/home/node/.openclaw/media:ro']
       },
       browser: {
         enabled: true
