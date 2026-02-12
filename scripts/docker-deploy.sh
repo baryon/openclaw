@@ -130,6 +130,8 @@ services:
     volumes:
       - ./data:/home/node/.openclaw
       - ./data/workspace:/home/node/.openclaw/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
     init: true
     command:
       - node
