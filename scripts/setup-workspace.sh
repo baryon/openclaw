@@ -458,7 +458,8 @@ update_config_jq() {
       "mode": "all",
       "workspaceAccess": "rw",
       "docker": {
-        "image": "openclaw-sandbox-dev:latest",
+        "image": "openclaw-sandbox:bookworm-slim",
+        "workdir": "/workspace",
         "readOnlyRoot": false,
         "network": "bridge",
         "user": "0:0",
@@ -473,8 +474,15 @@ update_config_jq() {
         ]
       },
       "browser": {
-        "enabled": true
+        "enabled": true,
+        "image": "openclaw-sandbox-browser:bookworm-slim",
+        "headless": false,
+        "enableNoVnc": true
       }
+    }
+    | .tools.sandbox.tools = {
+      "allow": ["*"],
+      "deny": ["canvas", "nodes"]
     }
   ' "$CONFIG_FILE" > "$TMP_FILE"
 
@@ -506,7 +514,8 @@ update_config_node() {
       mode: 'all',
       workspaceAccess: 'rw',
       docker: {
-        image: 'openclaw-sandbox-dev:latest',
+        image: 'openclaw-sandbox:bookworm-slim',
+        workdir: '/workspace',
         readOnlyRoot: false,
         network: 'bridge',
         user: '0:0',
@@ -519,8 +528,18 @@ update_config_node() {
         ]
       },
       browser: {
-        enabled: true
+        enabled: true,
+        image: 'openclaw-sandbox-browser:bookworm-slim',
+        headless: false,
+        enableNoVnc: true
       }
+    };
+
+    cfg.tools = cfg.tools || {};
+    cfg.tools.sandbox = cfg.tools.sandbox || {};
+    cfg.tools.sandbox.tools = {
+      allow: ['*'],
+      deny: ['canvas', 'nodes']
     };
 
     fs.writeFileSync('$CONFIG_FILE', JSON.stringify(cfg, null, 2) + '\n');
@@ -578,13 +597,20 @@ chmod -R 777 "$DATA_DIR"
 ok "权限已修复"
 
 # ---------------------------------------------------------------------------
-# Remove stale sandbox containers (so they pick up new mounts on recreate)
+# Remove stale sandbox and sandbox-browser containers (pick up new config)
 # ---------------------------------------------------------------------------
 STALE_SANDBOXES=$(docker ps -aq --filter "label=openclaw.sandbox=1" 2>/dev/null || true)
 if [[ -n "$STALE_SANDBOXES" ]]; then
   info "清理旧 sandbox 容器..."
   echo "$STALE_SANDBOXES" | xargs docker rm -f 2>/dev/null || true
   ok "旧 sandbox 容器已清理"
+fi
+
+STALE_SANDBOX_BROWSERS=$(docker ps -aq --filter "label=openclaw.sandboxBrowser=1" 2>/dev/null || true)
+if [[ -n "$STALE_SANDBOX_BROWSERS" ]]; then
+  info "清理旧 sandbox-browser 容器..."
+  echo "$STALE_SANDBOX_BROWSERS" | xargs docker rm -f 2>/dev/null || true
+  ok "旧 sandbox-browser 容器已清理"
 fi
 
 # ---------------------------------------------------------------------------

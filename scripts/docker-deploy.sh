@@ -251,6 +251,11 @@ info "Building Docker image..."
 docker compose -f "$COMPOSE_FILE" build
 
 echo ""
+info "Building sandbox images..."
+bash "$PROJECT_DIR/scripts/sandbox-setup.sh"
+bash "$PROJECT_DIR/scripts/sandbox-browser-setup.sh"
+
+echo ""
 info "Starting containers..."
 docker compose -f "$COMPOSE_FILE" up -d
 
